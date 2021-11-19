@@ -1,0 +1,214 @@
+---
+title: "Tarea 1"
+author: "Marái José Meisel - Juan Pablo Dulcey"
+date: "15/11/2021"
+output: html_document
+---
+
+# Incendios en Idaho 
+
+Cree un nuevo dataframe que sea un subconjunto del dataframe original de dfFires. El subconjunto debe contener todos los incendios del Estado de Idaho y las columnas deben ser limitadas para que sólo estén presentes las columnas YEAR_, CAUSE y TOTALACRES. Cambie el nombre de las columnas. Agrupe los datos por CAUSE y YEAR_ y luego resuma por el total de acres quemados. Trazar los resultado
+
+
+```{r include=FALSE}
+library(dplyr)
+library(readr)
+library("ggplot2")
+library(lubridate)
+library(scales)
+library(Rcpp)
+library(magick)
+```
+
+
+## Descarga de base de datos
+```{r}
+df = read.table("RDataSets/StudyArea.csv", header=TRUE, fill=TRUE, quote="", sep=",")
+names(df)
+```
+
+## Flitramos la base de datos por Idaho y reducimos las variables a 3
+```{r}
+dfFires <- filter(df, STATE %in% c("Idaho"))
+dfFires <- select(dfFires, YEAR_, CAUSE, TOTALACRES)
+```
+
+
+## Cambiamos el nombre de las columnas
+```{r}
+dfFires <- rename(dfFires, Año=YEAR_ , Causa=CAUSE , Acres_Quemados=TOTALACRES)
+head(dfFires)
+```
+
+## Detalles de los objetos
+```{r}
+str(dfFires)
+```
+
+## Comprobamos si existen vacios en Idaho.
+
+```{r}
+sum(with(dfFires,Causa == " "))
+```
+En fecto hay 43 datos, como no están determinados se sumaran a los "Unfetermined"
+
+```{r}
+dfFires$Causa[dfFires$Causa == " "] <- "Undetermined"
+```
+
+
+## Realizamos un descriptivo
+
+```{r}
+summary(dfFires)
+```
+
+## Agrupamos los datos en "Décadas"
+```{r}
+dfFires <- mutate(dfFires, Decada = ifelse(Año %in% 1980:1989, "1980-1989", 
+                                    ifelse(Año %in% 1990:1999, "1990-1999",
+                                    ifelse(Año %in% 2000:2009, "2000-2009", 
+                                    ifelse(Año %in% 2010:2016, "2010-2016", "-99")))))
+knitr::kable(head(dfFires))
+```
+
+```{r}
+grp = group_by(dfFires, Decada, Causa)
+sm = summarize(grp, mean(Acres_Quemados))
+sm <- rename(sm, Decada=Decada , Causa=Causa , Acres_Quemados="mean(Acres_Quemados)")
+```
+
+## VIsualización gráfico
+
+
+```{r}
+ggplot(data=sm,aes(x=Decada, y=Acres_Quemados,fill=	
+Causa))+ theme_minimal() + 
+ geom_bar(stat='identity', position='dodge') +
+  geom_text(aes(label=round(Acres_Quemados,2)), position=position_dodge(width=0.9), vjust=0.25) + 
+ coord_flip() +  scale_y_continuous(name="Acres Incendiados", labels = comma) + 
+  ggtitle ("Media de Acres Incendidados por Década según su Causa") + 
+    theme(
+    legend.position = c(1, 1),
+    legend.justification = c(1, 3),
+    legend.background = element_rect(fill = "white", colour = "black"),
+    plot.title = element_text(
+      size = rel(1.2), lineheight = .9
+    )) 
+```
+Como se puede observar los acres incendiados por causas naturales han aumentado de forma significativa desde que se lleva el registro. El cambio clímatico está impactando de forma importante doblar la media de acres cremados desde 1980-1989 hasta 2010-2016.
+
+En la primera década se presentó un registro importante de media de acres quemados y apartir de ahí empezaron a dismunir, sin embargo, el último registro presentó un aumento importante.
+
+
+# Atletas
+
+```{r include=FALSE}
+athe <- read_csv("https://raw.githubusercontent.com/lihkirun/AppliedStatisticMS/main/DataVisualizationRPython/Lectures/Python/PythonDataSets/athlete_events.csv")
+```
+
+```{r}
+
+athe <- athe %>% 
+  filter(!is.na(Medal)) %>% filter( !is.na(Sex)) %>% filter( !is.na(Age)) %>%
+    filter(!is.na(Height)) %>% filter(!is.na(Weight)) %>% filter(!is.na(Team)) %>%
+    filter(!is.na(NOC)) %>% filter(!is.na(Year)) %>% filter(!is.na(Season)) %>% 
+    filter(!is.na(Sport))
+
+
+```
+
+
+### Filtra el DataFrame para incluir solo las filas correspondientes a los ganadores de medallas de 2016.
+
+```{r}
+
+athe<- athe %>% filter(Year == 2016) 
+
+```
+
+
+### Descubre las medallas concedidas en 2016 en cada deporte
+
+```{r}
+
+sort(table(athe$Sport), decreasing = TRUE)
+
+```
+
+### Enumera los cinco deportes más importantes en función del mayor número de medallas concedidas. Filtra el DataFrame una vez más para incluir solo los registros de los cinco deportes principales en 2016.
+
+```{r}
+
+atdeport5 <- athe %>% 
+    filter(Sport %in% c("Swimming" , "Athletics",  "Rowing", "Football", "Hockey"))
+
+
+```
+
+
+```{r}
+table(atdeport5$Medal,atdeport5$Sport)
+Principal_sports = data.frame(table(atdeport5$Medal,atdeport5$Sport))
+Principal_sports <- rename(Principal_sports, Medal=Var1 , Sports=Var2 , 
+Quantity=Freq)
+head(Principal_sports)
+```
+
+### Genere un gráfico de barras con los recuentos de registros correspondientes a cada uno de los cinco deportes principales.
+
+```{r}
+ggplot(data=Principal_sports, aes(x=Sports, y=Quantity, fill=Medal)) + 
+    geom_bar(stat="identity") +
+    scale_fill_manual(values=c("#cd7f32", "yellow","gray"))+ theme_minimal() + 
+  ggtitle ("Distribución de las Medallas según los principales Deportes")
+
+```
+
+### Generar un histograma para la característica Edad de todos los ganadores de medallas en los cinco deportes principales (2016).
+
+
+```{r hist_edad, echo=FALSE}
+
+hist(atdeport5$Age, main = "Edad Deportes Principales", 
+     xlab = "Edad", ylab = "Frecuencia", 
+     col = "green")
+
+```
+
+### Genera un gráfico de barras que indique cuántas medallas ganó el equipo de cada país en los cinco deportes principales en 2016.
+
+```{r}
+Principal_sports2 = data.frame(table(atdeport5$Medal,atdeport5$Sport, atdeport5$Team))
+Principal_sports2 <- rename(Principal_sports2, Medal=Var1 , Sports=Var2 , 
+Quantity=Freq, Country = Var3 )
+head(Principal_sports2)
+```
+
+```{r}
+ggplot(data=Principal_sports2, aes(x=Country, y=Quantity, fill=Medal)) + 
+    geom_bar(stat="identity") +
+    scale_fill_manual(values=c("#cd7f32", "yellow","gray"))+ theme_minimal() + 
+  ggtitle ("Distribución de las Medallas según los principales Deportes") + 
+    theme (axis.text.x = element_text(face="italic", size=rel(0.8), angle = 90))
+
+```
+
+### Genere un gráfico de barras que indique el peso medio de los jugadores, clasificados en función del género, que ganaron en los cinco principales deportes en 2016.
+```{r}
+
+frx <- group_by(atdeport5, Sex)
+gfrx <- summarize(frx, Weight=mean(Weight))
+barplot(cbind(gfrx$Sexo,gfrx$Weight), main = "Peso Medio Según Peso 5 Deportes Principales", 
+        ylab = "Peso Medio", col = c("pink", "blue"))
+legend(x = "topright", legend = c("Fem", "Masc"), fill = c("royalblue", "grey"), 
+       title = "Gender")
+
+```
+
+
+
+
+
+
+
